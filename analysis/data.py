@@ -139,10 +139,8 @@ def prepare_data_simple(data_path, prompt_type="long", use_nli_format=False):
 
 def _build_dataset(x, use_nli_format):
     """Converts a dataframe split to a HuggingFace Dataset with the right columns."""
-    if use_nli_format:
-        return datasets.Dataset.from_pandas(x[["premise", "hypothesis", "labels"]].reset_index(drop=True))
-    return datasets.Dataset.from_pandas(x[["text", "labels"]].reset_index(drop=True))
-
+    cols = ["premise", "hypothesis", "labels"] if use_nli_format else ["text", "labels"]
+    return datasets.Dataset.from_pandas(x[cols].reset_index(drop=True), preserve_index=False)
 
 def _make_tokenize_fn(tokenizer, use_nli_format, max_length):
     """Returns a tokenization function appropriate for the input format."""
@@ -292,9 +290,11 @@ def load_prediction_data(path, prompt_type="long",
     x = _apply_prompt(x, prompt_type, use_nli_format)
 
     if use_nli_format:
-        prediction_data = datasets.Dataset.from_pandas(x[["premise", "hypothesis"]].reset_index(drop=True))
+        prediction_data = datasets.Dataset.from_pandas(
+            x[["premise", "hypothesis"]].reset_index(drop=True), preserve_index=False)
     else:
-        prediction_data = datasets.Dataset.from_pandas(x[["text"]].reset_index(drop=True))
+        prediction_data = datasets.Dataset.from_pandas(
+            x[["text"]].reset_index(drop=True), preserve_index=False)
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
 
