@@ -28,11 +28,16 @@ def transformer_train(train_dataloader, eval_dataloader,
     ).to("cuda")
 
     if use_lora:
+        if "DeBERTa" in model_source:
+            target_modules = ["query_proj", "value_proj"]
+        else: # RoBERTa/BERT based
+            target_modules = ["query", "value"]
+
         lora_config = peft.LoraConfig(
             r=8,
             lora_alpha=32,
             lora_dropout=0.01,
-            target_modules=["query_proj", "value_proj"],  # DeBERTa naming
+            target_modules=target_modules,  # DeBERTa naming
             bias="none",
             task_type=peft.TaskType.SEQ_CLS,
         )
@@ -79,7 +84,8 @@ def transformer_train(train_dataloader, eval_dataloader,
 
         macro_f1 = metrics.f1_score(eval_labels, eval_preds, average="macro")
         accuracy = metrics.accuracy_score(eval_labels, eval_preds)
-        print(f"Epoch {epoch+1} | loss: {avg_loss:.4f} | eval accuracy: {accuracy:.4f} | eval macro-F1: {macro_f1:.4f}")
+        print(f"Epoch {epoch+1} | loss: {avg_loss:.4f} "
+              f"| eval accuracy: {accuracy:.4f} | eval macro-F1: {macro_f1:.4f}")
 
     if output_dir:
         model.save_pretrained(output_dir)
@@ -90,15 +96,13 @@ def transformer_train(train_dataloader, eval_dataloader,
     return model
 
 
-def transformer_test(model, test_dataloader, test_labels):
+def transformer_test(model, test_dataloader):
     """
     Evaluates a fine-tuned encoder model on test data.
 
     model: fine-tuned model
     test_dataloader: DataLoader of test data
-    test_labels: ground truth integer labels
     """
-    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
 
     model.eval()
     device = next(model.parameters()).device
@@ -111,53 +115,4 @@ def transformer_test(model, test_dataloader, test_labels):
             preds = torch.argmax(outputs.logits, dim=-1)
             all_preds.extend(preds.cpu().numpy())
 
-    accuracy = metrics.accuracy_score(test_labels, all_preds)
-    macro_f1 = metrics.f1_score(test_labels, all_preds, average="macro")
-    print(f"Test accuracy: {accuracy:.4f} | Test macro-F1: {macro_f1:.4f}")
-
-    class_report = metrics.classification_report(
-        test_labels, all_preds, target_names=labels, labels=list(range(len(labels)))
-    )
-    print("\nClassification Report:")
-    print(class_report)
-
-    conf_matrix = metrics.confusion_matrix(test_labels, all_preds, labels=list(range(len(labels))))
-    print("\nConfusion Matrix:")
-    print(conf_matrix)
-
     return all_preds
-
-
-def transformer_predict(model, prediction_dataloader, df, output_path="labeled_examples.csv"):
-    """
-    Runs inference on unlabeled data and saves results.
-
-    model: fine-tuned model
-    prediction_dataloader: DataLoader of unlabeled data
-    df: original dataframe (for saving alongside predictions)
-    output_path: path to save CSV output
-    """
-    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
-
-    model.eval()
-    device = next(model.parameters()).device
-    all_preds = []
-
-    with torch.no_grad():
-        for batch in tqdm.tqdm(prediction_dataloader, desc="Predicting"):
-            batch = {k: v.to(device) for k, v in batch.items() if k in ["input_ids", "attention_mask"]}
-            outputs = model(**batch)
-            preds = torch.argmax(outputs.logits, dim=-1)
-            all_preds.extend(preds.cpu().numpy())
-
-            # Save incrementally in case of interruption
-            df_small = df.iloc[:len(all_preds)].copy()
-            df_small["label_int"] = all_preds
-            df_small["label"] = [labels[p] for p in all_preds]
-            df_small.to_csv(output_path, index=False)
-
-    df["label_int"] = all_preds
-    df["label"] = [labels[p] for p in all_preds]
-    df.to_csv(output_path, index=False)
-
-    return df, all_preds

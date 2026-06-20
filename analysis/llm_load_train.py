@@ -5,7 +5,7 @@ from sklearn import metrics
 import peft
 import torch
 
-def zero_shot_predict(test, model, tokenizer):
+def _zero_shot_predict(test, model, tokenizer):
   #Takes untrained model and outputs predictions
     y_pred = []
     categories = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
@@ -56,8 +56,15 @@ def zero_shot_test(x_test, model_source="meta-llama/Meta-Llama-3.1-8B-Instruct")
 
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    y_pred = zero_shot_predict(x_test, model, tokenizer)
-    return y_pred
+    y_pred = _zero_shot_predict(x_test, model, tokenizer)
+    
+    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
+    mapping = {label: idx for idx, label in enumerate(labels)}
+
+    def map_func(x):
+        return mapping.get(x, -1)  # Map to -1 if not found, untrained model more likely to not label
+    y_pred_mapped = np.vectorize(map_func)(y_pred)
+    return y_pred_mapped
 
 def fine_tune_train(train_dataloader, eval_dataloader, 
                     model_source="meta-llama/Meta-Llama-3.1-8B-Instruct", 
@@ -85,7 +92,6 @@ def fine_tune_train(train_dataloader, eval_dataloader,
         task_type=peft.TaskType.SEQ_CLS,
     )
 
-    model = peft.prepare_model_for_kbit_training(model)
     model = peft.get_peft_model(model, lora_config)
     model.train()
 
@@ -100,13 +106,17 @@ def fine_tune_train(train_dataloader, eval_dataloader,
             batch = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch)
             loss = outputs.loss
-            
+
             loss.backward()
             if (step + 1) % 4 == 0:  # gradient accumulation
                 optimizer.step()
                 optimizer.zero_grad()
-            
+
             total_loss += loss.item()
+
+        # cleaning up last batches in case number isn't divisible by four
+        optimizer.step()
+        optimizer.zero_grad()
 
         scheduler.step()
         print(f"Epoch {epoch+1} loss: {total_loss / len(train_dataloader):.4f}")
@@ -154,30 +164,6 @@ def fine_tune_test(model, test_dataloader):
             for i in range(batch["input_ids"].size(0)):  # iterate over batch dimension
                 single_batch = {k: v[i].unsqueeze(0) for k, v in batch.items()}
                 outputs = model(**single_batch)
-                #print(outputs.logits)
                 pred = torch.argmax(outputs.logits, dim=-1)
                 all_preds.append(pred.item())
-
-    print("Printing Fine-Tuned Model Results:")
     return all_preds
-
-def llm_label_predictions(df,prediction_dataloader,model,output_path="labeled_examples.csv"):
-    model.eval()
-    device = next(model.parameters()).device
-
-    all_preds = []
-
-    with torch.no_grad():
-        for batch in prediction_dataloader:
-            batch = {k: v.to(device) for k, v in batch.items() if k in ["input_ids", "attention_mask"]}
-            for i in range(batch["input_ids"].size(0)):  # iterate over batch dimension
-                single_batch = {k: v[i].unsqueeze(0) for k, v in batch.items()}
-                outputs = model(**single_batch)
-                pred = torch.argmax(outputs.logits, dim=-1)
-                all_preds.append(pred.item())
-                df_small = df.iloc[0:len(all_preds)]
-                df_small['labels'] = all_preds
-                df_small.to_csv(output_path,index=False)
-    df['labels'] = all_preds
-    df.to_csv(output_path,index=False)
-    return df, all_preds

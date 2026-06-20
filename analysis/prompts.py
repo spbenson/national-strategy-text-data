@@ -56,3 +56,11 @@ def generate_simple_prompt(data_point):
             Respond with only your classification.
             text: {data_point["TEXT"]}
             classification: """.strip()
+
+def generate_encoder_prompt(data_point):
+    """For standard encoder models (no NLI pretraining)."""
+    return f"[Source: {data_point['Country']}] [Target: {data_point['TARGET']}] {data_point['TEXT']}"
+
+def generate_nli_premise(data_point):
+    """Premise for NLI text-pair input. Paired with TEXT as hypothesis."""
+    return f"{data_point['Country']} views {data_point['TARGET']} as aligned with its interests."

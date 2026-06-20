@@ -1,2 +1,5 @@
 data/
 output/
+models/
+analysis/__pycache__
+hf_token.txt

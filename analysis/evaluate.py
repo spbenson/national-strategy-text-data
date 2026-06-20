@@ -1,58 +1,34 @@
-def zero_shot_evaluate(y_true, y_pred):
+from sklearn import metrics
+
+def evaluate(y_true_mapped, y_pred_mapped, model_name, results_file_path):
     """
-    Takes untrained model predictions and prints performance.
+    Takes model predictions and prints performance + writes it to file.
 
     y_true: true labels
     y_pred: predicted labels
     """
-    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
-    mapping = {label: idx for idx, label in enumerate(labels)}
+    print(f"Printing Model Results for {model_name}:")
+    with open(results_file_path, "a", encoding='utf-8') as results_file:
+        results_file.write(f'\n\n--------------\n{model_name}\n--------------\n')
+        labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
+        # Calculate accuracy
+        accuracy = metrics.accuracy_score(y_true_mapped, y_pred_mapped)
+        macro_f1 = metrics.f1_score(y_true_mapped, y_pred_mapped, average="macro")
+        print(f"Test accuracy: {accuracy:.4f} | Test macro-F1: {macro_f1:.4f}")
+        results_file.write(f"Test accuracy: {accuracy:.4f}\nTest macro-F1: {macro_f1:.4f}\n")
 
-    def map_func(x):
-        return mapping.get(x, -1)  # Map to -1 if not found, but should not occur with correct data
+        # Generate classification report
+        class_report = metrics.classification_report(
+            y_true=y_true_mapped, y_pred=y_pred_mapped,
+            target_names=labels, labels=list(range(len(labels))))
+        print(f'\nClassification Report:\n{class_report}')
+        results_file.write(f'\nClassification Report:\n{class_report}\n')
 
-    y_true_mapped = np.vectorize(map_func)(y_true)
-    y_pred_mapped = np.vectorize(map_func)(y_pred)
-
-    # Calculate accuracy
-    accuracy = metrics.accuracy_score(y_true=y_true_mapped, y_pred=y_pred_mapped)
-    print(f'Accuracy: {accuracy:.3f}')
-
-    # Generate accuracy report
-    unique_labels = set(y_true_mapped)  # Get unique labels
-
-    for label in unique_labels:
-        label_indices = [i for i in range(len(y_true_mapped)) if y_true_mapped[i] == label]
-        label_y_true = [y_true_mapped[i] for i in label_indices]
-        label_y_pred = [y_pred_mapped[i] for i in label_indices]
-        label_accuracy = metrics.accuracy_score(label_y_true, label_y_pred)
-        print(f'Accuracy for label {labels[label]}: {label_accuracy:.3f}')
-
-    # Generate classification report
-    class_report = metrics.classification_report(y_true=y_true_mapped, y_pred=y_pred_mapped, target_names=labels, labels=list(range(len(labels))))
-    print('\nClassification Report:')
-    print(class_report)
-
-    # Generate confusion matrix
-    try:
-      conf_matrix = metrics.confusion_matrix(y_true=y_true_mapped, y_pred=y_pred_mapped, labels=list(range(len(labels))))
-      print('\nConfusion Matrix:')
-      print(conf_matrix)
-    except:
-      print("error: confusion matrix not found")
-
-def fine_tune_evaluate(y_true_mapped, y_pred_mapped):
-    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
-    # Calculate accuracy
-    accuracy = metrics.accuracy_score(y_true=y_true_mapped, y_pred=y_pred_mapped)
-    print(f'Accuracy: {accuracy:.3f}')
-
-    # Generate classification report
-    class_report = metrics.classification_report(y_true=y_true_mapped, y_pred=y_pred_mapped, target_names=labels, labels=list(range(len(labels))))
-    print('\nClassification Report:')
-    print(class_report)
-
-    # Generate confusion matrix
-    conf_matrix = metrics.confusion_matrix(y_true=y_true_mapped, y_pred=y_pred_mapped, labels=list(range(len(labels))))
-    print('\nConfusion Matrix:')
-    print(conf_matrix)
+        # Generate confusion matrix
+        try:
+            conf_matrix = metrics.confusion_matrix(
+                y_true=y_true_mapped, y_pred=y_pred_mapped, labels=list(range(len(labels))))
+            print(f'\nConfusion Matrix:\n{conf_matrix}')
+            results_file.write(f'\nConfusion Matrix:\n{conf_matrix}\n')
+        except (TypeError, ValueError) as e:
+            print(f"{e}: confusion matrix not found")
