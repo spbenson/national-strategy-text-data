@@ -8,6 +8,7 @@ from torch.utils import data
 import numpy as np
 
 from .prompts import generate_large_prompt, generate_gpt_prompt, generate_simple_prompt, generate_encoder_prompt, generate_nli_premise
+from .constants import LABEL_MAPPING
 
 # Models that were pretrained on NLI and benefit from text-pair input formatting
 NLI_MODEL_KEYWORDS = ["mnli", "nli", "fever", "anli", "debate"]
@@ -190,10 +191,8 @@ def prepare_data_final(x_train, x_eval, x_test,
         max_length = 512 if is_encoder_model else 1024
 
     # Convert labels to int
-    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
-    mapping = {label: idx for idx, label in enumerate(labels)}
     for split in [x_train, x_eval, x_test]:
-        split.loc[:, 'labels'] = split.apply(lambda r: mapping[r['Label']], axis=1)
+        split.loc[:, 'labels'] = split.apply(lambda r: LABEL_MAPPING[r['Label']], axis=1)
 
     # Convert to HuggingFace datasets
     train_data = _build_dataset(x_train, use_nli_format)
@@ -224,9 +223,10 @@ def prepare_data_final(x_train, x_eval, x_test,
         tokenized_eval, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
     test_dataloader = data.DataLoader(
         tokenized_test, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
-
-    return train_dataloader, eval_dataloader, test_dataloader
-
+    
+    test_labels = x_test['labels'].tolist()
+    
+    return train_dataloader, eval_dataloader, test_dataloader, test_labels
 
 def prepare_data_train(data_path, prompt_type="long",
                        model_source="MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli",
@@ -242,7 +242,7 @@ def prepare_data_train(data_path, prompt_type="long",
     encoder_model: True if using an encoder-only model (DeBERTa, RoBERTa, etc.),
                    False for decoder-only (Llama, Mistral, etc.)
 
-    Returns: train_dataloader, eval_dataloader, test_dataloader
+    Returns: train_dataloader, eval_dataloader, test_dataloader, test_labels
     """
     use_nli_format = is_nli_model(model_source)
     max_length = 512 if is_encoder_model else 1024
