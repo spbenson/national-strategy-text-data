@@ -20,6 +20,8 @@ def train_test_models(data_path, models_path, results_path,
         print(f"Running with {model_source}")
         train_dataloader,eval_dataloader,test_dataloader = prepare_data_train(
             data_source, prompt_type="encoder", model_source=model_source, is_encoder_model=True)
+        batch = next(iter(train_dataloader))
+        print(batch.keys())
         model = transformer_train(train_dataloader, eval_dataloader, model_source, models_path + f"/trained_{model_source}")
         preds = transformer_test(model, test_dataloader)
         evaluate(test_dataloader, preds, model_source, results_path_full)
