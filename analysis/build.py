@@ -33,15 +33,7 @@ def train_test_models(data_path, models_path, results_path,
         )
         preds = transformer_test(model, test_dataloader)
         evaluate(test_labels, preds, model_source, results_path_full)
-
-        # --- GPU cleanup: critical for multi-model loops ---
-        # Without this, each model's weights + optimizer state + dataloader
-        # tensors accumulate in CUDA memory across loop iterations, since
-        # Python doesn't aggressively reclaim GPU memory the way it does
-        # regular RAM, and PyTorch's allocator caches freed blocks rather
-        # than returning them to the OS unless told to.
         free_gpu_memory(model, train_dataloader, eval_dataloader, test_dataloader)
-        # ----------------------------------------------------
 
     if llm_model_sources:
         for model_source in llm_model_sources:
@@ -72,9 +64,7 @@ def train_test_models(data_path, models_path, results_path,
                 evaluate(test_labels, fine_tune_preds,
                          "FINE TUNED-" + model_source, results_path_full)
 
-                # --- GPU cleanup, same reasoning as above ---
                 free_gpu_memory(model, train_dataloader, eval_dataloader, test_dataloader)
-                # ---------------------------------------------
 
 
 def train_predict(data_path, models_path, results_path,

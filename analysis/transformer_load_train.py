@@ -1,4 +1,3 @@
-import copy
 import gc
 import tqdm
 import transformers
@@ -8,22 +7,7 @@ import peft
 from sklearn import metrics
 from sklearn.utils.class_weight import compute_class_weight
 
-
-def free_gpu_memory(*objs):
-    """
-    Explicitly deletes the given objects and clears CUDA's cached allocator.
-    Call this in build.py between models to prevent GPU memory from
-    accumulating across a multi-model training loop.
-
-    Usage: free_gpu_memory(model, optimizer)  # pass any number of objects
-    """
-    for obj in objs:
-        del obj
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-
+from .utils import 
 
 def _get_lora_target_modules(model):
     """
@@ -164,20 +148,6 @@ def transformer_train(train_dataloader, eval_dataloader,
         print(f"Epoch {epoch+1} | loss: {avg_loss:.4f} "
               f"| eval accuracy: {accuracy:.4f} | eval macro-F1: {macro_f1:.4f}")
         print(f"  per-class F1: {dict(zip(range(num_labels), per_class_f1.round(3)))}")
-
-        if macro_f1 > best_macro_f1:
-            best_macro_f1 = macro_f1
-            # Move to CPU — keeping this on GPU means every improvement holds a
-            # full second copy of the model in CUDA memory simultaneously
-            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-            print(f"  ^ new best macro-F1 ({best_macro_f1:.4f}), checkpoint saved in memory")
-
-    if best_state is not None:
-        # Move back to the model's device when restoring
-        best_state = {k: v.to(device) for k, v in best_state.items()}
-        model.load_state_dict(best_state)
-        print(f"Restored best checkpoint with eval macro-F1: {best_macro_f1:.4f}")
-        del best_state
 
     if output_dir:
         model.save_pretrained(output_dir)

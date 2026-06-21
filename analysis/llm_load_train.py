@@ -9,20 +9,6 @@ import peft
 import torch
 
 
-def free_gpu_memory(*objs):
-    """
-    Explicitly deletes the given objects and clears CUDA's cached allocator.
-    Call this in build.py between models to prevent GPU memory from
-    accumulating across a multi-model training loop.
-    """
-    for obj in objs:
-        del obj
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
-
-
 def _zero_shot_predict(test, model, tokenizer):
   #Takes untrained model and outputs predictions
     y_pred = []
@@ -219,19 +205,6 @@ def fine_tune_train(train_dataloader, eval_dataloader,
         print(f"Epoch {epoch+1} eval accuracy: {acc:.4f} | eval macro-F1: {macro_f1:.4f}")
         print(f"  per-class F1: {dict(zip(range(num_labels), per_class_f1.round(3)))}")
         model.train()
-
-        if macro_f1 > best_macro_f1:
-            best_macro_f1 = macro_f1
-            # Stored on CPU — keeping this on GPU would hold a full second
-            # copy of the model in CUDA memory for every improvement
-            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-            print(f"  ^ new best macro-F1 ({best_macro_f1:.4f}), checkpoint saved in memory")
-
-    if best_state is not None:
-        best_state = {k: v.to(device) for k, v in best_state.items()}
-        model.load_state_dict(best_state)
-        print(f"Restored best checkpoint with eval macro-F1: {best_macro_f1:.4f}")
-        del best_state
 
     if output_dir:
         model.save_pretrained(output_dir)

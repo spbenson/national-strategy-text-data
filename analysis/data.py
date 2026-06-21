@@ -8,7 +8,7 @@ from torch.utils import data
 import numpy as np
 
 from .prompts import generate_large_prompt, generate_gpt_prompt, generate_simple_prompt, generate_encoder_prompt, generate_nli_premise
-from .constants import LABEL_MAPPING
+from .utils import LABEL_MAPPING
 
 # Models that were pretrained on NLI and benefit from text-pair input formatting
 NLI_MODEL_KEYWORDS = ["mnli", "nli", "fever", "anli", "debate"]
