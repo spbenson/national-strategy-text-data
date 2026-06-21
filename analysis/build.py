@@ -39,7 +39,7 @@ def train_test_models(data_path, models_path, results_path,
             train_dataloader, eval_dataloader, test_dataloader, test_labels = prepare_data_train(
                 data_path + "/coded_natsec.csv", prompt_type=prompt_type, model_source=model_source, is_encoder_model=False)
 
-            model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source, output_dir="drive/MyDrive/LLM_Saves")
+            model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source, output_dir="drive/MyDrive/LLM_Saves", num_epochs = 3)
             fine_tune_preds = fine_tune_test(model, test_dataloader)
 
             evaluate(test_labels, fine_tune_preds,
