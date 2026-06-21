@@ -131,7 +131,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
         model_source,
         num_labels=num_labels,
         device_map="auto",
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
         use_cache=False,
     )
 
@@ -171,6 +171,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
             loss = loss_fct(outputs.logits, labels)
 
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             if (step + 1) % 4 == 0:  # gradient accumulation
                 optimizer.step()
                 optimizer.zero_grad()
