@@ -81,9 +81,7 @@ def transformer_train(train_dataloader, eval_dataloader,
             lora_alpha=32,
             lora_dropout=0.01,
             target_modules=target_modules,
-            modules_to_save=["classifier"],  # fully fine-tune the (often freshly-initialized) classifier head,
-                                              # not just LoRA-adapt it — critical for models without NLI pretraining
-                                              # where the head starts from random weights
+            modules_to_save=["classifier"],  # fully fine-tune the classifier head
             bias="none",
             task_type=peft.TaskType.SEQ_CLS,
         )
@@ -104,9 +102,6 @@ def transformer_train(train_dataloader, eval_dataloader,
         num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
         num_training_steps=total_steps,
     )
-
-    best_macro_f1 = -1.0
-    best_state = None
 
     for epoch in range(num_epochs):
         # Training
