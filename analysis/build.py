@@ -9,7 +9,11 @@ from .constants import LABEL_MAPPING
 def train_test_models(data_path, models_path, results_path, 
                       transformer_model_sources,
                       llm_prompt_types, llm_model_sources, 
-                      get_untrained_results = True):
+                      get_untrained_results = True, 
+                      transformer_use_class_weights = True,
+                      llm_use_class_weights = False,
+                      transformer_num_epochs=3, transformer_lr=2e-5,
+                      llm_num_epochs=3, llm_lr=3e-4):
 
     dtg = datetime.now(timezone.utc).strftime('%d%H%M%Z%y')
     import_coded_data(data_path)
@@ -20,7 +24,11 @@ def train_test_models(data_path, models_path, results_path,
         print(f"Running with {model_source}")
         train_dataloader, eval_dataloader, test_dataloader, test_labels = prepare_data_train(
             data_source, prompt_type="encoder", model_source=model_source, is_encoder_model=True)
-        model = transformer_train(train_dataloader, eval_dataloader, model_source, models_path + f"/trained_{model_source}")
+        model = transformer_train(train_dataloader, eval_dataloader, model_source, 
+                                  models_path + f"/trained_{model_source}",
+                                use_class_weights=transformer_use_class_weights,
+                                num_epochs = transformer_num_epochs,
+                                lr=transformer_lr)
         preds = transformer_test(model, test_dataloader)
         evaluate(test_labels, preds, model_source, results_path_full)
 
@@ -39,7 +47,8 @@ def train_test_models(data_path, models_path, results_path,
             train_dataloader, eval_dataloader, test_dataloader, test_labels = prepare_data_train(
                 data_path + "/coded_natsec.csv", prompt_type=prompt_type, model_source=model_source, is_encoder_model=False)
 
-            model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source, output_dir="drive/MyDrive/LLM_Saves", num_epochs = 3)
+            model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source, output_dir="drive/MyDrive/LLM_Saves", 
+                                    use_class_weights=llm_use_class_weights, num_epochs = llm_num_epochs, lr=llm_lr)
             fine_tune_preds = fine_tune_test(model, test_dataloader)
 
             evaluate(test_labels, fine_tune_preds,

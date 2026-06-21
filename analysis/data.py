@@ -150,7 +150,7 @@ def _make_tokenize_fn(tokenizer, use_nli_format, max_length):
             examples["premise"],
             examples["hypothesis"],
             truncation=True,
-            padding='longest',
+            padding='max_length',
             max_length=max_length,
         )
     def tokenize_standard(examples):
@@ -189,6 +189,14 @@ def prepare_data_final(x_train, x_eval, x_test,
         use_nli_format = is_nli_model(model_source)
     if max_length is None:
         max_length = 512 if is_encoder_model else 1024
+    
+    # Initialize tokenizer
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
+
+    model_max = getattr(tokenizer, 'model_max_length', 512)
+    if model_max < max_length:
+        print(f"Model parameters change max length from {max_length} to {model_max}")
+        max_length = model_max
 
     # Convert labels to int
     for split in [x_train, x_eval, x_test]:
@@ -198,9 +206,6 @@ def prepare_data_final(x_train, x_eval, x_test,
     train_data = _build_dataset(x_train, use_nli_format)
     eval_data = _build_dataset(x_eval, use_nli_format)
     test_data = _build_dataset(x_test, use_nli_format)
-
-    # Initialize tokenizer
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
 
     # Decoder-only models need pad token set manually
     if not is_encoder_model:
