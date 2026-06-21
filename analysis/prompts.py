@@ -37,15 +37,15 @@ def generate_gpt_prompt(data_point):
 
             Example 1:
             Text: "{data_point["TARGET"]} engages in dialogue with {data_point["TARGET"]} on climate change issues."
-            Answer: 1
+            Answer: 1 (ALIGNED)
 
             Example 2:
             Text: "{data_point["TARGET"]} sees {data_point["TARGET"]}'s behavior as a challenge to its security."
-            Answer: 0
+            Answer: 0 (NOT ALIGNED)
 
             Example 3:
             Text: "{data_point["TARGET"]} seeks to promote multipolarity in global security."
-            Answer: 2
+            Answer: 2 (NEUTRAL/IRRELEVANT)
 
             Text: {data_point["TEXT"]}
             Answer:""".strip()
