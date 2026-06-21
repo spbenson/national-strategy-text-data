@@ -5,6 +5,18 @@ import torch
 import peft
 from sklearn import metrics
 
+def _get_lora_target_modules(model):
+    """Inspects the model's named modules to find attention projection layers."""
+    module_names = {name.split('.')[-1] for name, _ in model.named_modules()}
+    candidates = [
+        ("query_proj", "value_proj"),   # DeBERTa
+        ("q_proj", "v_proj"),           # BART, Llama-style
+        ("query", "value"),             # BERT/RoBERTa
+    ]
+    for q, v in candidates:
+        if q in module_names and v in module_names:
+            return [q, v]
+    raise ValueError(f"Could not auto-detect LoRA target modules for {model.config.model_type}")
 
 def transformer_train(train_dataloader, eval_dataloader,
                       model_source="MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli",
@@ -28,10 +40,7 @@ def transformer_train(train_dataloader, eval_dataloader,
     ).to("cuda")
 
     if use_lora:
-        if "DeBERTa" in model_source:
-            target_modules = ["query_proj", "value_proj"]
-        else: # RoBERTa/BERT based
-            target_modules = ["query", "value"]
+        target_modules = _get_lora_target_modules(model)
 
         lora_config = peft.LoraConfig(
             r=8,
