@@ -1,4 +1,5 @@
 import copy
+import gc
 import tqdm
 import transformers
 import numpy as np
@@ -6,6 +7,22 @@ import torch
 import peft
 from sklearn import metrics
 from sklearn.utils.class_weight import compute_class_weight
+
+
+def free_gpu_memory(*objs):
+    """
+    Explicitly deletes the given objects and clears CUDA's cached allocator.
+    Call this in build.py between models to prevent GPU memory from
+    accumulating across a multi-model training loop.
+
+    Usage: free_gpu_memory(model, optimizer)  # pass any number of objects
+    """
+    for obj in objs:
+        del obj
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 def _get_lora_target_modules(model):
@@ -82,6 +99,9 @@ def transformer_train(train_dataloader, eval_dataloader,
             lora_alpha=32,
             lora_dropout=0.01,
             target_modules=target_modules,
+            modules_to_save=["classifier"],  # fully fine-tune the (often freshly-initialized) classifier head,
+                                              # not just LoRA-adapt it — critical for models without NLI pretraining
+                                              # where the head starts from random weights
             bias="none",
             task_type=peft.TaskType.SEQ_CLS,
         )
@@ -121,6 +141,7 @@ def transformer_train(train_dataloader, eval_dataloader,
             scheduler.step()
             optimizer.zero_grad()
             total_loss += loss.item()
+            del outputs, loss, labels, batch
 
         avg_loss = total_loss / len(train_dataloader)
 
@@ -135,6 +156,7 @@ def transformer_train(train_dataloader, eval_dataloader,
                 preds = torch.argmax(outputs.logits, dim=-1)
                 eval_preds.extend(preds.cpu().numpy())
                 eval_labels.extend(labels.cpu().numpy())
+                del outputs, preds, labels, batch
 
         macro_f1 = metrics.f1_score(eval_labels, eval_preds, average="macro")
         accuracy = metrics.accuracy_score(eval_labels, eval_preds)
@@ -145,18 +167,31 @@ def transformer_train(train_dataloader, eval_dataloader,
 
         if macro_f1 > best_macro_f1:
             best_macro_f1 = macro_f1
-            best_state = copy.deepcopy(model.state_dict())
+            # Move to CPU — keeping this on GPU means every improvement holds a
+            # full second copy of the model in CUDA memory simultaneously
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             print(f"  ^ new best macro-F1 ({best_macro_f1:.4f}), checkpoint saved in memory")
 
     if best_state is not None:
+        # Move back to the model's device when restoring
+        best_state = {k: v.to(device) for k, v in best_state.items()}
         model.load_state_dict(best_state)
         print(f"Restored best checkpoint with eval macro-F1: {best_macro_f1:.4f}")
+        del best_state
 
     if output_dir:
         model.save_pretrained(output_dir)
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
         tokenizer.save_pretrained(output_dir)
         print(f"Model saved to {output_dir}")
+
+    # Optimizer/scheduler hold references to model parameters; drop them
+    # explicitly before returning so they don't keep gradients/state alive
+    del optimizer, scheduler, loss_fct
+    if class_weights is not None:
+        del class_weights
+    gc.collect()
+    torch.cuda.empty_cache()
 
     return model
 

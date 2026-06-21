@@ -1,4 +1,5 @@
 import copy
+import gc
 import tqdm
 import transformers
 import numpy as np
@@ -7,19 +8,37 @@ from sklearn.utils.class_weight import compute_class_weight
 import peft
 import torch
 
+
+def free_gpu_memory(*objs):
+    """
+    Explicitly deletes the given objects and clears CUDA's cached allocator.
+    Call this in build.py between models to prevent GPU memory from
+    accumulating across a multi-model training loop.
+    """
+    for obj in objs:
+        del obj
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
+
+
 def _zero_shot_predict(test, model, tokenizer):
   #Takes untrained model and outputs predictions
     y_pred = []
     categories = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
     answers = []
+
+    # Build the pipeline once, not on every row — recreating it per-row
+    # adds unnecessary overhead without freeing any memory
+    pipe = transformers.pipeline(task="text-generation",
+                    model=model,
+                    tokenizer=tokenizer,
+                    max_new_tokens=5,
+                    temperature=0.1)
+
     for i in tqdm.tqdm(range(len(test))):
         prompt = test.iloc[i]["text"]
-        pipe = transformers.pipeline(task="text-generation",
-                        model=model,
-                        tokenizer=tokenizer,
-                        max_new_tokens=5,
-                        temperature=0.1)
-
         result = pipe(prompt)
         answer = result[0]['generated_text'].split("classification:")[-1].strip()
         answers.append(answer)
@@ -30,8 +49,12 @@ def _zero_shot_predict(test, model, tokenizer):
                 break
         else:
             y_pred.append("none")
+        del result
+
     test['Output'] = answers
     test['Predicted'] = y_pred
+
+    del pipe
     return y_pred
 
 def zero_shot_test(x_test, model_source="meta-llama/Meta-Llama-3.1-8B-Instruct"):
@@ -66,6 +89,11 @@ def zero_shot_test(x_test, model_source="meta-llama/Meta-Llama-3.1-8B-Instruct")
     def map_func(x):
         return mapping.get(x, -1)  # Map to -1 if not found, untrained model more likely to not label
     y_pred_mapped = np.vectorize(map_func)(y_pred)
+
+    # zero_shot_test never returns the model, so unlike fine_tune_train it
+    # must free its own GPU memory here rather than relying on build.py
+    free_gpu_memory(model, tokenizer)
+
     return y_pred_mapped
 
 def _compute_class_weights(train_dataloader, num_labels, device):
@@ -163,6 +191,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
                 optimizer.zero_grad()
 
             total_loss += loss.item()
+            del outputs, loss, labels, batch
 
         # cleaning up last batches in case number isn't divisible by four
         optimizer.step()
@@ -182,6 +211,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
                 preds = torch.argmax(outputs.logits, dim=-1)
                 eval_preds.extend(preds.cpu().numpy())
                 eval_labels.extend(labels.cpu().numpy())
+                del outputs, preds, labels, batch
 
         acc = metrics.accuracy_score(eval_labels, eval_preds)
         macro_f1 = metrics.f1_score(eval_labels, eval_preds, average="macro")
@@ -192,29 +222,38 @@ def fine_tune_train(train_dataloader, eval_dataloader,
 
         if macro_f1 > best_macro_f1:
             best_macro_f1 = macro_f1
-            best_state = copy.deepcopy(model.state_dict())
+            # Stored on CPU — keeping this on GPU would hold a full second
+            # copy of the model in CUDA memory for every improvement
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
             print(f"  ^ new best macro-F1 ({best_macro_f1:.4f}), checkpoint saved in memory")
 
     if best_state is not None:
+        best_state = {k: v.to(device) for k, v in best_state.items()}
         model.load_state_dict(best_state)
         print(f"Restored best checkpoint with eval macro-F1: {best_macro_f1:.4f}")
+        del best_state
 
     if output_dir:
         model.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
 
+    del optimizer, scheduler, loss_fct
+    if class_weights is not None:
+        del class_weights
+    gc.collect()
+    torch.cuda.empty_cache()
+
     return model
 
 def fine_tune_test(model, test_dataloader):
-    """_summary_
+    """
+    Runs inference with a fine-tuned LLM classifier on test data.
 
-    Args:
-        model (_type_): _description_
-        test_dataloader (_type_): _description_
-        test_labels (_type_): _description_
+    model: fine-tuned model
+    test_dataloader: DataLoader of test data
 
     Returns:
-        list: produced predictions
+        list: predicted class indices
     """
     model.eval()
     device = next(model.parameters()).device
@@ -229,4 +268,6 @@ def fine_tune_test(model, test_dataloader):
                 outputs = model(**single_batch)
                 pred = torch.argmax(outputs.logits, dim=-1)
                 all_preds.append(pred.item())
+                del outputs, pred, single_batch
+            del batch
     return all_preds
