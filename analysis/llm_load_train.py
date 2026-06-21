@@ -75,7 +75,10 @@ def zero_shot_test(x_test, model_source="meta-llama/Meta-Llama-3.1-8B-Instruct")
     mapping = {label: idx for idx, label in enumerate(labels)}
 
     def map_func(x):
-        return mapping.get(x, -1)  # Map to -1 if not found, untrained model more likely to not label
+        return_val = mapping.get(x, -1)  # Map to -1 if not found, untrained model more likely to not label
+        if return_val == -1:
+            print(x)
+        return return_val
     y_pred_mapped = np.vectorize(map_func)(y_pred)
 
     # zero_shot_test never returns the model, so unlike fine_tune_train it
