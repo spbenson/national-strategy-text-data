@@ -2,8 +2,9 @@ from datetime import datetime, timezone
 
 from .data import import_coded_data, import_uncoded_data, prepare_data_train, prepare_data_simple
 from .llm_load_train import fine_tune_train, fine_tune_test, zero_shot_test
-from .transformer_load_train import transformer_train, transformer_test, free_gpu_memory
+from .transformer_load_train import transformer_train, transformer_test
 from .evaluate import evaluate
+from .utils import free_gpu_memory
 
 
 def train_test_models(data_path, models_path, results_path,

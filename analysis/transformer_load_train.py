@@ -7,8 +7,6 @@ import peft
 from sklearn import metrics
 from sklearn.utils.class_weight import compute_class_weight
 
-from .utils import 
-
 def _get_lora_target_modules(model):
     """
     Inspects the model's named modules to find attention projection layers,

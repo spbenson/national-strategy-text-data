@@ -8,6 +8,8 @@ from sklearn.utils.class_weight import compute_class_weight
 import peft
 import torch
 
+from .utils import free_gpu_memory
+
 
 def _zero_shot_predict(test, model, tokenizer):
   #Takes untrained model and outputs predictions
