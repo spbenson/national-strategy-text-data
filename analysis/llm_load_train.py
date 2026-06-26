@@ -41,6 +41,7 @@ def _zero_shot_predict(test, model, tokenizer):
 
     test['Output'] = answers
     test['Predicted'] = y_pred
+    print(test)
 
     del pipe
     return y_pred
