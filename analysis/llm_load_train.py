@@ -77,8 +77,6 @@ def zero_shot_test(x_test, model_source="meta-llama/Meta-Llama-3.1-8B-Instruct")
 
     def map_func(x):
         return_val = mapping.get(x, -1)  # Map to -1 if not found, untrained model more likely to not label
-        if return_val == -1:
-            print(x)
         return return_val
     y_pred_mapped = np.vectorize(map_func)(y_pred)
 
