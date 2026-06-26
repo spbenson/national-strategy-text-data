@@ -109,7 +109,7 @@ def _compute_class_weights(train_dataloader, num_labels, device):
 
 def fine_tune_train(train_dataloader, eval_dataloader, 
                     model_source="meta-llama/Meta-Llama-3.1-8B-Instruct", 
-                    output_dir="", num_epochs=3, lr=3e-4,
+                    output_dir="", num_epochs=3, lr=1e-3,
                     use_class_weights=False, num_labels=3):
     """
     Fine-tunes a decoder LLM for sequence classification via LoRA.
@@ -247,6 +247,6 @@ def fine_tune_test(model, test_dataloader):
             batch = {k: v.to(device) for k, v in batch.items() if k in ["input_ids", "attention_mask"]}
             outputs = model(**batch)
             preds = torch.argmax(outputs.logits, dim=-1)
-            all_preds.append(preds.cpu().numpy())
+            all_preds.extend(preds.cpu().numpy())
             del outputs, preds, batch
     return all_preds
