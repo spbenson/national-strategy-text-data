@@ -128,7 +128,6 @@ def fine_tune_train(train_dataloader, eval_dataloader,
     Returns the model checkpoint with the best eval macro-F1 across all epochs
     (not necessarily the final epoch).
     """
-    print(lr)
 
     model = transformers.AutoModelForSequenceClassification.from_pretrained(
         model_source,
@@ -164,11 +163,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
 
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.0)
     total_steps = len(train_dataloader) * num_epochs
-    scheduler = transformers.get_linear_schedule_with_warmup(
-        optimizer,
-        num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
-        num_training_steps=total_steps,
-        )
+    scheduler = scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
 
     for epoch in range(num_epochs):
         total_loss = 0
