@@ -71,7 +71,7 @@ def train_test_models(data_path, models_path, results_path,
 
 
 def train_predict(data_path, results_path, is_transformer,
-                  model_source, llm_prompt_type, batch_size=10):
+                  model_source, llm_prompt_type, num_epochs=3, lr=3e-4, batch_size=10):
     dtg = datetime.now(timezone.utc).strftime('%d%H%M%Z%y')
     import_coded_data(data_path)
     import_uncoded_data(data_path)
@@ -82,7 +82,7 @@ def train_predict(data_path, results_path, is_transformer,
     if is_transformer:
         train_dataloader, eval_dataloader, _, _ = prepare_data_train(
             coded_data_source, prompt_type="encoder", model_source=model_source, is_encoder_model=True, batch_size=batch_size)
-        model = transformer_train(train_dataloader, eval_dataloader, model_source=model_source)
+        model = transformer_train(train_dataloader, eval_dataloader, model_source=model_source, num_epochs=num_epochs, lr=lr)
 
         # Fit temperature on eval set and report ECE before/after
         optimal_temp = calibrate(model, eval_dataloader)
@@ -100,7 +100,7 @@ def train_predict(data_path, results_path, is_transformer,
         train_dataloader, eval_dataloader, _, _ = prepare_data_train(
             coded_data_source, prompt_type=llm_prompt_type,
             model_source=model_source, is_encoder_model=False, batch_size=batch_size)
-        model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source)
+        model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source, num_epochs=num_epochs, lr=lr)
 
         # Fit temperature on eval set and report ECE before/after
         optimal_temp = calibrate(model, eval_dataloader)

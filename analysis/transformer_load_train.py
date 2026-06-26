@@ -52,7 +52,7 @@ def transformer_train(train_dataloader, eval_dataloader,
                       use_class_weights=True, num_labels=3):
     """
     Fine-tunes an encoder-only model for sequence classification.
-
+ 
     train_dataloader:   DataLoader of training data
     eval_dataloader:    DataLoader of eval data
     model_source:       HuggingFace model checkpoint
@@ -63,17 +63,17 @@ def transformer_train(train_dataloader, eval_dataloader,
     use_class_weights:  if True, weights the loss by inverse class frequency to
                         counter majority-class collapse on imbalanced data
     num_labels:         number of classification labels
-
+ 
     Returns the model checkpoint with the best eval macro-F1 across all epochs
     (not necessarily the final epoch).
     """
-
+ 
     model = transformers.AutoModelForSequenceClassification.from_pretrained(
         model_source,
         num_labels=num_labels,
         ignore_mismatched_sizes=True,  # NLI head -> N-class stance head
     ).to("cuda")
-
+ 
     if use_lora:
         target_modules = _get_lora_target_modules(model)
         lora_config = peft.LoraConfig(
@@ -87,14 +87,14 @@ def transformer_train(train_dataloader, eval_dataloader,
         )
         model = peft.get_peft_model(model, lora_config)
         model.print_trainable_parameters()
-
+ 
     device = next(model.parameters()).device
-
+ 
     class_weights = None
     if use_class_weights:
         class_weights = _compute_class_weights(train_dataloader, num_labels, device)
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
-
+ 
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.01)
     total_steps = len(train_dataloader) * num_epochs
     scheduler = transformers.get_linear_schedule_with_warmup(
@@ -102,7 +102,10 @@ def transformer_train(train_dataloader, eval_dataloader,
         num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
         num_training_steps=total_steps,
     )
-
+ 
+    best_macro_f1 = -1.0
+    best_state = None
+ 
     for epoch in range(num_epochs):
         # Training
         model.train()
@@ -119,9 +122,9 @@ def transformer_train(train_dataloader, eval_dataloader,
             optimizer.zero_grad()
             total_loss += loss.item()
             del outputs, loss, labels, batch
-
+ 
         avg_loss = total_loss / len(train_dataloader)
-
+ 
         # Validation
         model.eval()
         eval_preds, eval_labels = [], []
@@ -134,20 +137,36 @@ def transformer_train(train_dataloader, eval_dataloader,
                 eval_preds.extend(preds.cpu().numpy())
                 eval_labels.extend(labels.cpu().numpy())
                 del outputs, preds, labels, batch
-
+ 
         macro_f1 = metrics.f1_score(eval_labels, eval_preds, average="macro")
         accuracy = metrics.accuracy_score(eval_labels, eval_preds)
         per_class_f1 = metrics.f1_score(eval_labels, eval_preds, average=None)
         print(f"Epoch {epoch+1} | loss: {avg_loss:.4f} "
               f"| eval accuracy: {accuracy:.4f} | eval macro-F1: {macro_f1:.4f}")
         print(f"  per-class F1: {dict(zip(range(num_labels), per_class_f1.round(3)))}")
-
+ 
+        # Track the best checkpoint by eval macro-F1. Stored on CPU so it
+        # doesn't hold a second copy of the model in GPU memory. Catches the
+        # mid-training peak that final-epoch selection would miss.
+        if macro_f1 > best_macro_f1:
+            best_macro_f1 = macro_f1
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            print(f"  ^ new best macro-F1 ({best_macro_f1:.4f}), checkpoint saved in memory")
+ 
+    # Restore the best checkpoint before saving/returning. load_state_dict
+    # copies CPU tensors into the model's existing GPU params in place, so we
+    # don't move the whole state dict to GPU first (lower peak memory).
+    if best_state is not None:
+        model.load_state_dict(best_state)
+        print(f"Restored best checkpoint with eval macro-F1: {best_macro_f1:.4f}")
+        del best_state
+ 
     if output_dir:
         model.save_pretrained(output_dir)
         tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
         tokenizer.save_pretrained(output_dir)
         print(f"Model saved to {output_dir}")
-
+ 
     # Optimizer/scheduler hold references to model parameters; drop them
     # explicitly before returning so they don't keep gradients/state alive
     del optimizer, scheduler, loss_fct
@@ -155,7 +174,7 @@ def transformer_train(train_dataloader, eval_dataloader,
         del class_weights
     gc.collect()
     torch.cuda.empty_cache()
-
+ 
     return model
 
 
