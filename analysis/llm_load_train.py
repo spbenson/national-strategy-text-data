@@ -162,7 +162,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
         class_weights = _compute_class_weights(train_dataloader, num_labels, device)
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.0)
+    optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.0)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
 
     for epoch in range(num_epochs):

@@ -95,7 +95,7 @@ def transformer_train(train_dataloader, eval_dataloader,
         class_weights = _compute_class_weights(train_dataloader, num_labels, device)
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.01)
+    optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.01)
     total_steps = len(train_dataloader) * num_epochs
     scheduler = transformers.get_linear_schedule_with_warmup(
         optimizer,
