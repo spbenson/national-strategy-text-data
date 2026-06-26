@@ -21,8 +21,8 @@ def generate_large_prompt(data_point):
             -The text is not explicitly directed at {data_point['TARGET']}: for example, it only mentions {data_point['TARGET']} in passing without substantive information or statements.
 
             Respond with only your classification.
-            text: {data_point["TEXT"]}
-            classification: """.strip()
+            Text: {data_point["TEXT"]}
+            Classification: """.strip()
 
 def generate_gpt_prompt(data_point):
     return f"""
@@ -37,25 +37,25 @@ def generate_gpt_prompt(data_point):
 
             Example 1:
             Text: "{data_point["TARGET"]} engages in dialogue with {data_point["TARGET"]} on climate change issues."
-            Answer: ALIGNED (1)
+            Classification: ALIGNED (1)
 
             Example 2:
             Text: "{data_point["TARGET"]} sees {data_point["TARGET"]}'s behavior as a challenge to its security."
-            Answer: NOT_ALIGNED (0)
+            Classification: NOT_ALIGNED (0)
 
             Example 3:
             Text: "{data_point["TARGET"]} seeks to promote multipolarity in global security."
-            Answer: NEUTRAL/IRRELEVANT (2)
+            Classification: NEUTRAL/IRRELEVANT (2)
 
             Text: {data_point["TEXT"]}
-            Answer:""".strip()
+            Classification:""".strip()
 
 def generate_simple_prompt(data_point):
     return f"""
             Below is a section of a national security document from the country {data_point["Country"]}. Focus on the country's position towards {data_point['TARGET']}. Based on this section of text, classify how the country {data_point['Country']} views {data_point['TARGET']} as either "Aligned", "Not_Aligned", or "Neutral/Irrelevant".
             Respond with only your classification.
-            text: {data_point["TEXT"]}
-            classification: """.strip()
+            Text: {data_point["TEXT"]}
+            Classification: """.strip()
 
 def generate_encoder_prompt(data_point):
     """For standard encoder models (no NLI pretraining)."""

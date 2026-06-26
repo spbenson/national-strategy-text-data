@@ -28,7 +28,7 @@ def _zero_shot_predict(test, model, tokenizer):
     for i in tqdm.tqdm(range(len(test))):
         prompt = test.iloc[i]["text"]
         result = pipe(prompt)
-        answer = result[0]['generated_text'].split("classification:")[-1].strip()
+        answer = result[0]['generated_text'].split("Classification:")[-1].strip()
         answers.append(answer)
         # Determine the predicted category
         for category in categories:
