@@ -8,7 +8,7 @@ from torch.utils import data
 import numpy as np
 
 from .prompts import generate_large_prompt, generate_gpt_prompt, generate_simple_prompt, generate_encoder_prompt, generate_nli_premise
-from .utils import LABEL_MAPPING, free_gpu_memory
+from .utils import LABEL_MAPPING
 
 # Models that were pretrained on NLI and benefit from text-pair input formatting
 NLI_MODEL_KEYWORDS = ["mnli", "nli", "fever", "anli", "debate"]
@@ -270,7 +270,7 @@ def prepare_data_train(data_path, prompt_type="long",
 
 def load_prediction_data(path, prompt_type="long",
                          model_source="meta-llama/Meta-Llama-3.1-8B-Instruct", batch_size=10,
-                         is_encoder_model=False, use_nli_format=None, max_length=None):
+                         is_encoder_model=False, max_length=None):
     """
     Loads and tokenizes unlabeled data for inference.
 
@@ -281,10 +281,8 @@ def load_prediction_data(path, prompt_type="long",
     max_length:     max token length. Defaults to 512 for encoders, 1024 for decoders.
     batch_size:     batch size for DataLoader
     """
-    if use_nli_format is None:
-        use_nli_format = is_nli_model(model_source)
-    if max_length is None:
-        max_length = 512 if is_encoder_model else 1024
+    use_nli_format = is_nli_model(model_source)
+    max_length = 512 if is_encoder_model else 1024
 
     df = pd.read_csv(path, encoding_errors='ignore')
 
@@ -302,6 +300,10 @@ def load_prediction_data(path, prompt_type="long",
             x[["text"]].reset_index(drop=True), preserve_index=False)
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
+    model_max = getattr(tokenizer, 'model_max_length', 512)
+    if model_max < max_length:
+        print(f"Model parameters change max length from {max_length} to {model_max}")
+        max_length = model_max
 
     if not is_encoder_model:
         if "gemma" in model_source.lower():

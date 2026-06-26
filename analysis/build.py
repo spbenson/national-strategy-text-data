@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 
-from .data import import_coded_data, import_uncoded_data, prepare_data_train, prepare_data_simple
+from .data import import_coded_data, import_uncoded_data, prepare_data_train, prepare_data_simple, load_prediction_data
 from .llm_load_train import fine_tune_train, fine_tune_test, zero_shot_test
 from .transformer_load_train import transformer_train, transformer_test
 from .evaluate import evaluate
 from .utils import free_gpu_memory
+from .predict import llm_predict, transformer_predict, calibrate
 
 
 def train_test_models(data_path, models_path, results_path,
@@ -19,7 +20,7 @@ def train_test_models(data_path, models_path, results_path,
     import_coded_data(data_path)
     data_source = data_path + "/coded_natsec.csv"
     results_path_full = results_path + f"/{dtg}_results.txt"
-
+    
     # transformer models first
     for model_source in transformer_model_sources:
         print(f"Running with {model_source}")
@@ -52,12 +53,12 @@ def train_test_models(data_path, models_path, results_path,
                              "ZERO SHOT-" + model_source + "-" + prompt_type, results_path_full)
 
                 train_dataloader, eval_dataloader, test_dataloader, test_labels = prepare_data_train(
-                    data_path + "/coded_natsec.csv", prompt_type=prompt_type,
+                    data_source, prompt_type=prompt_type,
                     model_source=model_source, is_encoder_model=False)
 
                 model = fine_tune_train(
                     train_dataloader, eval_dataloader, model_source=model_source,
-                    output_dir="drive/MyDrive/LLM_Saves",
+                    output_dir=models_path + f"/trained_{model_source}",
                     num_epochs=llm_num_epochs, lr=llm_lr,
                     use_class_weights=llm_use_class_weights,
                 )
@@ -66,10 +67,52 @@ def train_test_models(data_path, models_path, results_path,
                          "FINE TUNED-" + model_source + "-" + prompt_type, results_path_full)
 
                 free_gpu_memory(model, train_dataloader, eval_dataloader, test_dataloader)
+                del model, train_dataloader, eval_dataloader, test_dataloader
 
 
-def train_predict(data_path, models_path, results_path,
-                  transformer_model_sources,
-                  llm_prompt_types, llm_model_sources,
-                  get_untrained_results=True):
-    pass
+def train_predict(data_path, results_path, is_transformer,
+                  model_source, llm_prompt_type):
+    dtg = datetime.now(timezone.utc).strftime('%d%H%M%Z%y')
+    import_coded_data(data_path)
+    import_uncoded_data(data_path)
+    coded_data_source = data_path + "/coded_natsec.csv"
+    uncoded_data_source = data_path + "/uncoded_natsec.csv"
+    results_path_full = results_path + f"/{dtg}_labels.txt"
+
+    if is_transformer:
+        train_dataloader, eval_dataloader, _, _ = prepare_data_train(
+            coded_data_source, prompt_type="encoder", model_source=model_source, is_encoder_model=True)
+        model = transformer_train(train_dataloader, eval_dataloader, model_source=model_source)
+
+        # Fit temperature on eval set and report ECE before/after
+        optimal_temp = calibrate(model, eval_dataloader)
+
+        df, prediction_dataloader = load_prediction_data(uncoded_data_source, prompt_type="encoder",
+                         model_source=model_source, batch_size=10,
+                         is_encoder_model=True)
+        # Run prediction on unlabeled data with calibrated probabilities
+        df, preds = transformer_predict(
+            model, prediction_dataloader, df,
+            output_path=results_path_full,
+            temperature=optimal_temp)
+
+    else:
+        train_dataloader, eval_dataloader, _, _ = prepare_data_train(
+            coded_data_source, prompt_type=llm_prompt_type,
+            model_source=model_source, is_encoder_model=False)
+        model = fine_tune_train(train_dataloader, eval_dataloader, model_source=model_source)
+
+        # Fit temperature on eval set and report ECE before/after
+        optimal_temp = calibrate(model, eval_dataloader)
+
+        df, prediction_dataloader = load_prediction_data(uncoded_data_source, prompt_type=llm_prompt_type,
+                         model_source=model_source, batch_size=10,
+                         is_encoder_model=False)
+        # Run prediction on unlabeled data with calibrated probabilities
+        df, preds = llm_predict(
+            model, prediction_dataloader, df,
+            output_path=results_path_full,
+            temperature=optimal_temp)
+
+    return preds
+
