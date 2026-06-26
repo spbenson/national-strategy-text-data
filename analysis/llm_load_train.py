@@ -163,7 +163,12 @@ def fine_tune_train(train_dataloader, eval_dataloader,
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
 
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.0)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.85)
+    total_steps = len(train_dataloader) * num_epochs
+    scheduler = transformers.get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
+        num_training_steps=total_steps,
+        )
 
     for epoch in range(num_epochs):
         total_loss = 0
@@ -239,11 +244,8 @@ def fine_tune_test(model, test_dataloader):
     with torch.no_grad():
         for batch in test_dataloader:
             batch = {k: v.to(device) for k, v in batch.items() if k in ["input_ids", "attention_mask"]}
-            for i in range(batch["input_ids"].size(0)):  # iterate over batch dimension
-                single_batch = {k: v[i].unsqueeze(0) for k, v in batch.items()}
-                outputs = model(**single_batch)
-                pred = torch.argmax(outputs.logits, dim=-1)
-                all_preds.append(pred.item())
-                del outputs, pred, single_batch
-            del batch
+            outputs = model(**batch)
+            preds = torch.argmax(outputs.logits, dim=-1)
+            all_preds.append(preds.cpu().numpy())
+            del outputs, preds, batch
     return all_preds

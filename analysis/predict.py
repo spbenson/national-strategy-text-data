@@ -231,17 +231,15 @@ def llm_predict(model, prediction_dataloader, df,
     device = next(model.parameters()).device
     all_logits = []
 
-    with torch.no_grad():
+    with torch.inference_mode():
         for batch in tqdm.tqdm(prediction_dataloader, desc="Predicting"):
             batch = {k: v.to(device) for k, v in batch.items()
                      if k in ["input_ids", "attention_mask"]}
-            # Process batch-at-a-time for decoder models to avoid memory issues
-            for i in range(batch["input_ids"].size(0)):
-                single = {k: v[i].unsqueeze(0) for k, v in batch.items()}
-                outputs = model(**single)
-                all_logits.append(outputs.logits.cpu().float().numpy())
+            outputs = model(**batch)
+            all_logits.append(outputs.logits.cpu().float().numpy())
+            del outputs, batch
 
-            # Incremental save
+            # save every batch
             partial_logits = np.concatenate(all_logits, axis=0)
             partial_df = _build_prob_df(df.iloc[:len(partial_logits)], partial_logits, temperature)
             partial_df.to_csv(output_path, index=False)
@@ -250,5 +248,4 @@ def llm_predict(model, prediction_dataloader, df,
     df = _build_prob_df(df, all_logits, temperature)
     df.to_csv(output_path, index=False)
 
-    all_preds = df["label_int"].tolist()
-    return df, all_preds
+    return df, df["label_int"].tolist()
