@@ -128,6 +128,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
     Returns the model checkpoint with the best eval macro-F1 across all epochs
     (not necessarily the final epoch).
     """
+    print(lr)
 
     model = transformers.AutoModelForSequenceClassification.from_pretrained(
         model_source,
