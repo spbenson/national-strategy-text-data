@@ -77,7 +77,7 @@ def train_predict(data_path, results_path, is_transformer,
     import_uncoded_data(data_path)
     coded_data_source = data_path + "/coded_natsec.csv"
     uncoded_data_source = data_path + "/uncoded_natsec.csv"
-    results_path_full = results_path + f"/{dtg}_labels.txt"
+    results_path_full = results_path + f"/{dtg}_labels.csv"
 
     if is_transformer:
         train_dataloader, eval_dataloader, _, _ = prepare_data_train(

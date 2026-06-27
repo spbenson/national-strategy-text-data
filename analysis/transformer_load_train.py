@@ -102,7 +102,7 @@ def transformer_train(train_dataloader, eval_dataloader,
         num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
         num_training_steps=total_steps,
     )"""
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.7)
  
     best_macro_f1 = -1.0
     best_state = None

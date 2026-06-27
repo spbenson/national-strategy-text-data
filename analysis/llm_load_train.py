@@ -22,7 +22,7 @@ def _zero_shot_predict(test, model, tokenizer):
     pipe = transformers.pipeline(task="text-generation",
                     model=model,
                     tokenizer=tokenizer,
-                    max_new_tokens=5,
+                    max_new_tokens=10,
                     temperature=0.1)
 
     for i in tqdm.tqdm(range(len(test))):
@@ -162,7 +162,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
  
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.0)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.7)
  
     best_macro_f1 = -1.0
     best_state = None
