@@ -107,7 +107,7 @@ def _compute_class_weights(train_dataloader, num_labels, device):
 
 def fine_tune_train(train_dataloader, eval_dataloader, 
                     model_source="meta-llama/Meta-Llama-3.1-8B-Instruct", 
-                    output_dir="", num_epochs=3, lr=3e-4,
+                    output_dir="", num_epochs=3, lr=1e-4,
                     use_class_weights=False, num_labels=3):
     """
     Fine-tunes a decoder LLM for sequence classification via LoRA.
@@ -162,8 +162,15 @@ def fine_tune_train(train_dataloader, eval_dataloader,
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
  
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.0)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.7)
- 
+    total_steps = len(train_dataloader) * num_epochs
+    scheduler = transformers.get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(0.03 * total_steps),  # 10% warmup
+        num_training_steps=total_steps,
+    )
+
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.7)
+    
     best_macro_f1 = -1.0
     best_state = None
  

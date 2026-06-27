@@ -96,14 +96,13 @@ def transformer_train(train_dataloader, eval_dataloader,
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
  
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.01)
-    """    total_steps = len(train_dataloader) * num_epochs
+    total_steps = len(train_dataloader) * num_epochs
     scheduler = transformers.get_linear_schedule_with_warmup(
         optimizer,
         num_warmup_steps=int(0.1 * total_steps),  # 10% warmup
         num_training_steps=total_steps,
-    )"""
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.7)
- 
+    )
+
     best_macro_f1 = -1.0
     best_state = None
  
