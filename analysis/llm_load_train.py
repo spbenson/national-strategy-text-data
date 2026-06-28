@@ -33,11 +33,11 @@ def _zero_shot_predict(test, model, tokenizer):
         answers.append(answer)
         # Determine the predicted category
         append_val = None
-        for category, num_category in categories, num_categories:
+        for index, category in enumerate(categories):
             if category.lower() in answer.lower():
                 y_pred.append(category)
                 break
-            if num_category in answer:
+            if num_categories[index] in answer:
                 y_pred.append(category)
                 break
         y_pred.append(append_val)
