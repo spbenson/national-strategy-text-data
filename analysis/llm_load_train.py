@@ -15,6 +15,7 @@ def _zero_shot_predict(test, model, tokenizer):
   #Takes untrained model and outputs predictions
     y_pred = []
     categories = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
+    num_categories = ["0", "1", "2"]
     answers = []
 
     # Build the pipeline once, not on every row — recreating it per-row
@@ -31,12 +32,15 @@ def _zero_shot_predict(test, model, tokenizer):
         answer = result[0]['generated_text'].split("Answer:")[-1].strip()
         answers.append(answer)
         # Determine the predicted category
-        for category in categories:
+        append_val = None
+        for category, num_category in categories, num_categories:
             if category.lower() in answer.lower():
                 y_pred.append(category)
                 break
-        else:
-            y_pred.append("none")
+            if num_category in answer:
+                y_pred.append(category)
+                break
+        y_pred.append(append_val)
         del result
 
     test['Output'] = answers
