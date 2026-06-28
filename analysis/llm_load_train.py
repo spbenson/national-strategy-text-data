@@ -159,6 +159,7 @@ def fine_tune_train(train_dataloader, eval_dataloader,
     class_weights = None
     if use_class_weights:
         class_weights = _compute_class_weights(train_dataloader, num_labels, device)
+        class_weights = class_weights.to(model.dtype) 
     loss_fct = torch.nn.CrossEntropyLoss(weight=class_weights)
  
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=0.0)

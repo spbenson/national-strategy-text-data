@@ -14,7 +14,7 @@ def train_test_models(data_path, models_path, results_path,
                       get_untrained_results=True,
                       transformer_use_class_weights=True, llm_use_class_weights=False,
                       transformer_num_epochs=3, transformer_lr=2e-5,
-                      llm_num_epochs=3, llm_lr=3e-4, batch_size=10):
+                      llm_num_epochs=3, llm_lr=1e-4, batch_size=10):
 
     dtg = datetime.now(timezone.utc).strftime('%d%H%M%Z%y')
     import_coded_data(data_path)
@@ -71,7 +71,7 @@ def train_test_models(data_path, models_path, results_path,
 
 
 def train_predict(data_path, results_path, is_transformer,
-                  model_source, llm_prompt_type, num_epochs=3, lr=3e-4, batch_size=10):
+                  model_source, llm_prompt_type, num_epochs=3, lr=1e-4, batch_size=10):
     dtg = datetime.now(timezone.utc).strftime('%d%H%M%Z%y')
     import_coded_data(data_path)
     import_uncoded_data(data_path)
