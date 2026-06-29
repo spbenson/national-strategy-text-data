@@ -29,23 +29,23 @@ def generate_gpt_prompt(data_point):
             Classify the following text writen by {data_point["Country"]} about {data_point["TARGET"]} as one of three labels: ALIGNED, NOT_ALIGNED, or NEUTRAL/IRRELEVANT.
 
             Instructions:
-            - NOT_ALIGNED: Text shows hostility, criticism, or conflict with {data_point["TARGET"]}.
-            - ALIGNED: Text shows cooperation, praise, or joint actions with {data_point["TARGET"]}.
-            - NEUTRAL/IRRELEVANT: Text is factual, ambiguous, or unrelated to {data_point["TARGET"]}.
+            - Not_Aligned: Text shows hostility, criticism, or conflict with {data_point["TARGET"]}.
+            - Aligned: Text shows cooperation, praise, or joint actions with {data_point["TARGET"]}.
+            - Neutral/Irrelevant: Text is factual, ambiguous, or unrelated to {data_point["TARGET"]}.
 
             Focus ONLY on statements about {data_point["TARGET"]}. Respond with exactly one label.
 
             Example 1:
             Text: "{data_point["Country"]} engages in dialogue with {data_point["TARGET"]} on climate change issues."
-            Answer: ALIGNED
+            Answer: Aligned
 
             Example 2:
             Text: "{data_point["Country"]} sees {data_point["TARGET"]}'s behavior as a challenge to its security."
-            Answer: NOT_ALIGNED
+            Answer: Not_Aligned
 
             Example 3:
             Text: "{data_point["TARGET"]} seeks to promote multipolarity in global security."
-            Answer: NEUTRAL/IRRELEVANT
+            Answer: Neutral/Irrelevant
 
             Text: {data_point["TEXT"]}
             Answer:""".strip()
