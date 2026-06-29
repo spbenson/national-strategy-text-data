@@ -25,7 +25,7 @@ def import_coded_data(data_path):
     coded_data_link = "https://drive.google.com/file/d/1oUXoIgs7M465Kvef8gjOIet-1gRDcRkv/view?usp=sharing"
     coded_data_path = data_path + "/coded_natsec.csv"
     if not pathlib.Path(coded_data_path).is_file():
-        gdown.download(coded_data_link, output=coded_data_path, quiet=False, fuzzy=True)
+        gdown.download(coded_data_link, output=coded_data_path, quiet=False)
 
 def import_uncoded_data(data_path):
     """Imports uncoded data from Google Drive if not already present locally."""
@@ -35,8 +35,17 @@ def import_uncoded_data(data_path):
     uncoded_data_link = "https://drive.google.com/file/d/17rX-0ew_fWR2LH2vJjApRRb9jHpGJjb-/view?usp=sharing"
     uncoded_data_path = data_path + "/uncoded_natsec.csv"
     if not pathlib.Path(uncoded_data_path).is_file():
-        gdown.download(uncoded_data_link, output=uncoded_data_path, quiet=False, fuzzy=True)
+        gdown.download(uncoded_data_link, output=uncoded_data_path, quiet=False)
 
+def import_prediction_data(data_path):
+    """Prediction data from Google Drive if not already present locally."""
+    dir_path = pathlib.Path(data_path)
+    dir_path.mkdir(parents=True, exist_ok=True)
+
+    prediction_data_link = "https://drive.google.com/file/d/1Jib8wKRPiFbdhB1FHEkYFraxsDY5R26c/view?usp=sharing"
+    prediction_data_path = data_path + "/natsec_prediction_full.csv"
+    if not pathlib.Path(prediction_data_path).is_file():
+        gdown.download(prediction_data_link, output=prediction_data_path, quiet=False)
 
 def create_label(df):
     """Takes dataframe of human coded sheet and outputs it with one label column."""
@@ -320,3 +329,54 @@ def load_prediction_data(path, prompt_type="long",
         tokenized_prediction, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
 
     return df, prediction_dataloader
+
+def produce_output_data(data_path, local_prediction_file = None):
+    prediction_file = local_prediction_file
+    if prediction_file is None:
+        import_prediction_data(data_path)
+        prediction_file = data_path + "/natsec_prediction_full.csv"
+
+    df = pd.read_csv(prediction_file)
+    grouped_df = _aggregate_by_country_target_year(df)
+    grouped_df.to_csv(data_path + "/formatted_results.csv")
+
+def _aggregate_by_country_target_year(df):
+    """
+    Aggregates per-example stance predictions to the country-target-year level.
+ 
+    For each (Country, Target, Year) group, computes the mean of the three
+    calibrated class probabilities, the mean prediction confidence, and the
+    number of text examples in that group.
+ 
+    Grouping includes Target because a country's stance is only meaningful
+    relative to a specific target (e.g. Albania-2013 toward CHINA is a
+    distinct quantity from Albania-2013 toward the EU).
+ 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Per-example prediction output. Must contain the columns:
+        'Country', 'Target', 'Year',
+        'prob_not_aligned', 'prob_aligned', 'prob_neutral_irrelevant',
+        'confidence'.
+ 
+    Returns
+    -------
+    pd.DataFrame
+        One row per (Country, Target, Year) with columns:
+        'Country', 'Target', 'Year',
+        'avg_prob_not_aligned', 'avg_prob_aligned', 'avg_prob_neutral_irrelevant',
+        'avg_confidence', 'count'
+    """
+    grouped = (
+        df.groupby(["Country", "Target", "Year"])
+          .agg(
+              avg_prob_not_aligned=("prob_not_aligned", "mean"),
+              avg_prob_aligned=("prob_aligned", "mean"),
+              avg_prob_neutral_irrelevant=("prob_neutral_irrelevant", "mean"),
+              avg_confidence=("confidence", "mean"),
+              count=("prob_not_aligned", "size"),
+          )
+          .reset_index()
+    )
+    return grouped
