@@ -11,7 +11,7 @@ from .predict import llm_predict, transformer_predict, calibrate
 def train_test_models(data_path, models_path, results_path,
                       transformer_model_sources,
                       llm_prompt_types, llm_model_sources,
-                      get_llm_untrained_results=True, get_llm_trained_results=False
+                      get_llm_untrained_results=False, get_llm_trained_results=False,
                       transformer_use_class_weights=True, llm_use_class_weights=False,
                       transformer_num_epochs=3, transformer_lr=2e-5,
                       llm_num_epochs=3, llm_lr=1e-4, batch_size=10):
