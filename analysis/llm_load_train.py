@@ -23,7 +23,7 @@ def _zero_shot_predict(test, model, tokenizer):
     pipe = transformers.pipeline(task="text-generation",
                     model=model,
                     tokenizer=tokenizer,
-                    max_new_tokens=10,
+                    max_new_tokens=5,
                     temperature=0.1)
 
     for i in tqdm.tqdm(range(len(test))):

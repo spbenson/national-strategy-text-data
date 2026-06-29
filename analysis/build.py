@@ -11,7 +11,7 @@ from .predict import llm_predict, transformer_predict, calibrate
 def train_test_models(data_path, models_path, results_path,
                       transformer_model_sources,
                       llm_prompt_types, llm_model_sources,
-                      get_untrained_results=True,
+                      get_llm_untrained_results=True, get_llm_trained_results=False
                       transformer_use_class_weights=True, llm_use_class_weights=False,
                       transformer_num_epochs=3, transformer_lr=2e-5,
                       llm_num_epochs=3, llm_lr=1e-4, batch_size=10):
@@ -43,7 +43,7 @@ def train_test_models(data_path, models_path, results_path,
             for prompt_type in llm_prompt_types:
                 print(f"Running with {prompt_type}")
 
-                if get_untrained_results:
+                if get_llm_untrained_results:
                     _, _, x_test = prepare_data_simple(data_source, prompt_type=prompt_type)
                     labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
                     mapping = {label: idx for idx, label in enumerate(labels)}
@@ -52,22 +52,23 @@ def train_test_models(data_path, models_path, results_path,
                     evaluate(x_test['labels'], zero_shot_preds,
                              "ZERO SHOT-" + model_source + "-" + prompt_type, results_path_full)
 
-                train_dataloader, eval_dataloader, test_dataloader, test_labels = prepare_data_train(
-                    data_source, prompt_type=prompt_type,
-                    model_source=model_source, is_encoder_model=False, batch_size=batch_size)
+                if get_llm_trained_results:
+                    train_dataloader, eval_dataloader, test_dataloader, test_labels = prepare_data_train(
+                        data_source, prompt_type=prompt_type,
+                        model_source=model_source, is_encoder_model=False, batch_size=batch_size)
 
-                model = fine_tune_train(
-                    train_dataloader, eval_dataloader, model_source=model_source,
-                    output_dir=models_path + f"/trained_{model_source}",
-                    num_epochs=llm_num_epochs, lr=llm_lr,
-                    use_class_weights=llm_use_class_weights,
-                )
-                fine_tune_preds = fine_tune_test(model, test_dataloader)
-                evaluate(test_labels, fine_tune_preds,
-                         "FINE TUNED-" + model_source + "-" + prompt_type, results_path_full)
+                    model = fine_tune_train(
+                        train_dataloader, eval_dataloader, model_source=model_source,
+                        output_dir=models_path + f"/trained_{model_source}",
+                        num_epochs=llm_num_epochs, lr=llm_lr,
+                        use_class_weights=llm_use_class_weights,
+                    )
+                    fine_tune_preds = fine_tune_test(model, test_dataloader)
+                    evaluate(test_labels, fine_tune_preds,
+                            "FINE TUNED-" + model_source + "-" + prompt_type, results_path_full)
 
-                free_gpu_memory(model, train_dataloader, eval_dataloader, test_dataloader)
-                del model, train_dataloader, eval_dataloader, test_dataloader
+                    free_gpu_memory(model, train_dataloader, eval_dataloader, test_dataloader)
+                    del model, train_dataloader, eval_dataloader, test_dataloader
 
 
 def train_predict(data_path, results_path, is_transformer,
