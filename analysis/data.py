@@ -8,6 +8,7 @@ from torch.utils import data
 import numpy as np
 
 from .prompts import generate_large_prompt, generate_gpt_prompt, generate_simple_prompt, generate_encoder_prompt, generate_nli_premise
+from .utils import LABEL_MAPPING
 
 # Models that were pretrained on NLI and benefit from text-pair input formatting
 NLI_MODEL_KEYWORDS = ["mnli", "nli", "fever", "anli", "debate"]
@@ -139,10 +140,8 @@ def prepare_data_simple(data_path, prompt_type="long", use_nli_format=False):
 
 def _build_dataset(x, use_nli_format):
     """Converts a dataframe split to a HuggingFace Dataset with the right columns."""
-    if use_nli_format:
-        return datasets.Dataset.from_pandas(x[["premise", "hypothesis", "labels"]])
-    return datasets.Dataset.from_pandas(x[["text", "labels"]])
-
+    cols = ["premise", "hypothesis", "labels"] if use_nli_format else ["text", "labels"]
+    return datasets.Dataset.from_pandas(x[cols].reset_index(drop=True), preserve_index=False)
 
 def _make_tokenize_fn(tokenizer, use_nli_format, max_length):
     """Returns a tokenization function appropriate for the input format."""
@@ -151,7 +150,7 @@ def _make_tokenize_fn(tokenizer, use_nli_format, max_length):
             examples["premise"],
             examples["hypothesis"],
             truncation=True,
-            padding='longest',
+            padding='max_length',
             max_length=max_length,
         )
     def tokenize_standard(examples):
@@ -190,20 +189,23 @@ def prepare_data_final(x_train, x_eval, x_test,
         use_nli_format = is_nli_model(model_source)
     if max_length is None:
         max_length = 512 if is_encoder_model else 1024
+    
+    # Initialize tokenizer
+    tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
+
+    model_max = getattr(tokenizer, 'model_max_length', 512)
+    if model_max < max_length:
+        print(f"Model parameters change max length from {max_length} to {model_max}")
+        max_length = model_max
 
     # Convert labels to int
-    labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
-    mapping = {label: idx for idx, label in enumerate(labels)}
     for split in [x_train, x_eval, x_test]:
-        split.loc[:, 'labels'] = split.apply(lambda r: mapping[r['Label']], axis=1)
+        split.loc[:, 'labels'] = split.apply(lambda r: LABEL_MAPPING[r['Label']], axis=1)
 
     # Convert to HuggingFace datasets
     train_data = _build_dataset(x_train, use_nli_format)
     eval_data = _build_dataset(x_eval, use_nli_format)
     test_data = _build_dataset(x_test, use_nli_format)
-
-    # Initialize tokenizer
-    tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
 
     # Decoder-only models need pad token set manually
     if not is_encoder_model:
@@ -226,9 +228,10 @@ def prepare_data_final(x_train, x_eval, x_test,
         tokenized_eval, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
     test_dataloader = data.DataLoader(
         tokenized_test, batch_size=batch_size, shuffle=False, collate_fn=data_collator)
-
-    return train_dataloader, eval_dataloader, test_dataloader
-
+    
+    test_labels = x_test['labels'].tolist()
+    
+    return train_dataloader, eval_dataloader, test_dataloader, test_labels
 
 def prepare_data_train(data_path, prompt_type="long",
                        model_source="MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli",
@@ -244,7 +247,7 @@ def prepare_data_train(data_path, prompt_type="long",
     encoder_model: True if using an encoder-only model (DeBERTa, RoBERTa, etc.),
                    False for decoder-only (Llama, Mistral, etc.)
 
-    Returns: train_dataloader, eval_dataloader, test_dataloader
+    Returns: train_dataloader, eval_dataloader, test_dataloader, test_labels
     """
     use_nli_format = is_nli_model(model_source)
     max_length = 512 if is_encoder_model else 1024
@@ -267,7 +270,7 @@ def prepare_data_train(data_path, prompt_type="long",
 
 def load_prediction_data(path, prompt_type="long",
                          model_source="meta-llama/Meta-Llama-3.1-8B-Instruct", batch_size=10,
-                         is_encoder_model=False, use_nli_format=None, max_length=None):
+                         is_encoder_model=False, max_length=None):
     """
     Loads and tokenizes unlabeled data for inference.
 
@@ -278,10 +281,8 @@ def load_prediction_data(path, prompt_type="long",
     max_length:     max token length. Defaults to 512 for encoders, 1024 for decoders.
     batch_size:     batch size for DataLoader
     """
-    if use_nli_format is None:
-        use_nli_format = is_nli_model(model_source)
-    if max_length is None:
-        max_length = 512 if is_encoder_model else 1024
+    use_nli_format = is_nli_model(model_source)
+    max_length = 512 if is_encoder_model else 1024
 
     df = pd.read_csv(path, encoding_errors='ignore')
 
@@ -292,11 +293,17 @@ def load_prediction_data(path, prompt_type="long",
     x = _apply_prompt(x, prompt_type, use_nli_format)
 
     if use_nli_format:
-        prediction_data = datasets.Dataset.from_pandas(x[["premise", "hypothesis"]])
+        prediction_data = datasets.Dataset.from_pandas(
+            x[["premise", "hypothesis"]].reset_index(drop=True), preserve_index=False)
     else:
-        prediction_data = datasets.Dataset.from_pandas(x[["text"]])
+        prediction_data = datasets.Dataset.from_pandas(
+            x[["text"]].reset_index(drop=True), preserve_index=False)
 
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_source)
+    model_max = getattr(tokenizer, 'model_max_length', 512)
+    if model_max < max_length:
+        print(f"Model parameters change max length from {max_length} to {model_max}")
+        max_length = model_max
 
     if not is_encoder_model:
         if "gemma" in model_source.lower():

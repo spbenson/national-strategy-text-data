@@ -13,7 +13,7 @@ def evaluate(y_true_mapped, y_pred_mapped, model_name, results_file_path):
         labels = ["Not_Aligned", "Aligned", "Neutral/Irrelevant"]
         # Calculate accuracy
         accuracy = metrics.accuracy_score(y_true_mapped, y_pred_mapped)
-        macro_f1 = metrics.f1_score(y_true_mapped, y_pred_mapped, average="macro")
+        macro_f1 = metrics.f1_score(y_true_mapped, y_pred_mapped, average="macro", labels=list(range(len(labels))))
         print(f"Test accuracy: {accuracy:.4f} | Test macro-F1: {macro_f1:.4f}")
         results_file.write(f"Test accuracy: {accuracy:.4f}\nTest macro-F1: {macro_f1:.4f}\n")
 
